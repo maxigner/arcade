@@ -797,13 +797,6 @@
   .fr-when{ font-size: 11px; color: #868e96; flex: none; }
   .fr-btn{ border: 2px solid #8ce99a; background: rgba(140,233,154,0.12); color: #8ce99a; border-radius: 10px; padding: 6px 12px; font-family: inherit; font-weight: 900; font-size: 13px; margin-top: 6px; }
   .fr-btn.off{ border-color: rgba(255,255,255,0.3); color: #d8cfbd; background: none; }
-  .fr-code{ display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,0.06); border: 1.5px dashed rgba(255,209,102,0.5); border-radius: 14px; padding: 12px; font-size: 13.5px; line-height: 1.55; word-break: keep-all; }
-  .fr-code b.t{ color: #ffd166; font-size: 15px; }
-  .fr-code textarea{ width: 100%; min-height: 64px; box-sizing: border-box; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.25); color: #f1e9da; font-family: ui-monospace, monospace; font-size: 12px; padding: 8px; resize: vertical; word-break: break-all; }
-  .fr-code .row{ display: flex; gap: 8px; flex-wrap: wrap; }
-  .fr-code .fr-btn{ margin-top: 0; }
-  .fr-code .msg{ font-size: 12.5px; color: #8ce99a; white-space: pre-line; }
-  .fr-code .msg.bad{ color: #ff8787; }
   .fr-del{ flex: none; border: none; background: none; color: #868e96; font-size: 14px; padding: 2px 4px; }
   .arc-save-row{ display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .save-chip{ font-size: 12.5px; font-weight: 800; border-radius: 999px; padding: 5px 10px; background: rgba(255,255,255,0.08); color: #bdb3a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -1693,7 +1686,6 @@
     </div>
     <div id="recFr" hidden>
       <div class="rec-summary" id="frStatus"></div>
-      <div class="fr-code" id="frCode" hidden></div>
       <div class="fr-chips" id="frChips"></div>
       <div class="hub-list" id="frList"></div>
       <p class="hub-note">순위표는 이 오락실 링크를 받은 사람끼리 함께 봐요. 기록을 올리면 오락실에서 정한 <b>플레이어 이름</b>과 게임별 최고 점수가 보여요. 언제든 내릴 수 있어요.</p>
@@ -12000,11 +11992,12 @@
   requestAnimationFrame(loop);
 /*@@MODULE friends@@*/
   /* =========================================================
-     👥 4단계: 친구 순위표 (claude.ai 공유 데이터)
+     👥 4단계: 친구 순위표 (웹 오락실: 구글 로그인 · claude.ai 버전은 주인 시험용)
      - 각자 자기 칸 ranks/<내 id> 에만 씀 (남의 칸은 못 씀 · 규칙으로 막음)
      - 모두가 ranks 전체를 읽어 게임별 순위를 봄
      - 올리는 건 직접 "올리기"를 누른 사람만 (wallet.rankOn)
      - 쓰기는 기록이 실제로 바뀌었을 때만, 5초 모아서 한 번
+     - (예전 '📤 기록 코드 → 주인이 📥 등록' 방식은 없앰: 앞으로는 구글 로그인으로만 올림. 주인의 '순위 줄 빼기'는 유지)
      ========================================================= */
   var FR = { db: null, uid: null, canWrite: null, ready: false, off: false, unsub: null, rows: {}, sel: 'blocks', lastUp: '', busy: false, again: false, t: null };
   var FR_SPECIAL = [
@@ -12067,12 +12060,11 @@
     var html;
     if (FR.off) html = window.ARCADE_WEB ? '👥 <b>🔑 구글로 로그인</b>하면 친구 순위를 보고 내 기록도 올릴 수 있어요. (💾 저장·백업 화면에서 로그인)' : '👥 친구 순위는 claude.ai에 <b>로그인해서</b> 이 오락실을 열었을 때 볼 수 있어요.';
     else if (!FR.ready) html = '👥 연결 확인 중…';
-    else if (FR.canWrite === false) html = '👀 링크로 들어온 친구는 순위표에 <b>직접</b> 올릴 수 없어요.<br>아래에서 <b>📤 내 기록 코드</b>를 만들어 오락실 주인에게 보내면, 주인이 등록해서 순위표에 올라가요.';
+    else if (FR.canWrite === false) html = '👀 이 링크에서는 순위표에 기록을 올릴 수 없어요.<br>기록 올리기와 친구 순위는 <b>웹 오락실</b>(maxigner.github.io/arcade)에서 <b>🔑 구글 로그인</b> 후 이용해 주세요.';
     else if (wallet.rankOn) html = '✅ 내 기록이 순위표에 올라가 있어요 · 이름: <b>' + esc0(SAVED_NAME || '플레이어') + '</b><br><button class="fr-btn off" id="frToggle">순위표에서 내 기록 내리기</button>';
     else html = '내 최고 기록을 친구들과 겨뤄 볼까요?<br><button class="fr-btn" id="frToggle">🏆 내 기록 올리기</button>';
     stEl.innerHTML = html;
     var tg = document.getElementById('frToggle'); if (tg) tg.addEventListener('click', frToggle);
-    frCodeBox();
     // 고르기 칩
     var chips = document.getElementById('frChips'); chips.innerHTML = '';
     CABINETS.map(function(cb){ return { id: cb.id, ico: cb.ico, name: cb.name }; }).concat(FR_SPECIAL).forEach(function(o){
@@ -12115,96 +12107,6 @@
     }
     frRender();
   }
-  /* ---------- 📤 기록 코드 (링크로 들어온 친구) · 📥 등록 (주인) ----------
-     친구는 순위표에 쓸 권한이 없어서, 기록을 코드로 만들어 주인에게 보내고 주인이 대신 올림.
-     코드 = OSR1.<내용>.<확인값> · 내용이 한 글자라도 바뀌면 확인값이 맞지 않아 등록이 거절됨 */
-  var FR_SALT = 'oss-rank-v1';
-  function frHash(s){ var h = 2166136261; for (var i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
-  function frB64(str){ var by = new TextEncoder().encode(str), bin = ''; for (var i = 0; i < by.length; i++) bin += String.fromCharCode(by[i]); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
-  function frUnB64(b){ b = b.replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '='; var bin = atob(b), by = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) by[i] = bin.charCodeAt(i); return new TextDecoder().decode(by); }
-  function frLocalId(){
-    if (FR.uid) return FR.uid;
-    var k = 'arcade_fr_localid', v = null;
-    try { v = localStorage.getItem(k); } catch(e){}
-    if (!v){ v = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); try { localStorage.setItem(k, v); } catch(e){} }
-    return v;
-  }
-  function frMakeCode(){
-    var d = frMyDoc(), o = { i: frLocalId(), n: d.n, b: d.b, st: d.st, es: d.es, t: d.t };
-    var body = frB64(JSON.stringify(o));
-    return 'OSR1.' + body + '.' + frHash(FR_SALT + body);
-  }
-  var FR_IDS = null;
-  function frParseCode(code){
-    var parts = String(code).trim().split('.');
-    if (parts.length !== 3 || parts[0] !== 'OSR1') throw '기록 코드가 아니에요 (OSR1. 으로 시작해야 해요)';
-    if (frHash(FR_SALT + parts[1]) !== parts[2]) throw '코드가 잘렸거나 바뀌었어요. 다시 받아 주세요';
-    var o; try { o = JSON.parse(frUnB64(parts[1])); } catch(e){ throw '코드를 읽을 수 없어요'; }
-    if (!FR_IDS){ FR_IDS = {}; CABINETS.forEach(function(cb){ FR_IDS[cb.id] = 1; }); }
-    if (!o || typeof o.i !== 'string' || !/^[A-Za-z0-9_\-:.]{1,80}$/.test(o.i)) throw '코드의 주인 표시가 이상해요';
-    var b = {};
-    Object.keys(o.b || {}).forEach(function(k){ var v = Math.round(+o.b[k]); if (FR_IDS[k] && v > 0 && v < 1e10) b[k] = v; });
-    var t = Math.min(+o.t || 0, Date.now() + 864e5);
-    return { id: o.i, doc: { n: String(o.n || '플레이어').slice(0, 10), b: b, st: Math.max(0, Math.min(9999, Math.round(+o.st || 0))), es: Math.max(0, Math.min(9999, Math.round(+o.es || 0))), t: t, v: 1, via: 'code' } };
-  }
-  function frRegister(text){
-    var codes = String(text || '').match(/OSR1\.[A-Za-z0-9_\-]+\.[a-z0-9]+/g) || [];
-    if (!codes.length) return Promise.resolve([{ bad: true, msg: '붙여 넣은 글에 기록 코드(OSR1.…)가 없어요' }]);
-    var out = [];
-    return codes.reduce(function(pr, code){
-      return pr.then(function(){
-        var r; try { r = frParseCode(code); } catch(e){ out.push({ bad: true, msg: String(e) }); return; }
-        var old = FR.rows[r.id];
-        if (old && (+old.t || 0) > r.doc.t){ out.push({ bad: true, msg: r.doc.n + ': 이미 더 새 기록이 올라가 있어요' }); return; }
-        return FR.db.doc('ranks/' + r.id).set(r.doc).then(function(){
-          var games = Object.keys(r.doc.b).length;
-          out.push({ msg: '✅ ' + r.doc.n + ' 등록 (게임 ' + games + '개 · 도장 ' + r.doc.st + '개)' });
-        }, function(){ out.push({ bad: true, msg: r.doc.n + ': 저장하지 못했어요. 잠시 뒤 다시 해 주세요' }); });
-      });
-    }, Promise.resolve()).then(function(){ return out; });
-  }
-  function frCopy(ta, btn){
-    var done = function(){ btn.textContent = '✅ 복사했어요'; setTimeout(function(){ btn.textContent = '📋 복사하기'; }, 2000); };
-    var fallback = function(){ ta.focus(); ta.select(); btn.textContent = '길게 눌러 복사해 주세요'; };
-    try { navigator.clipboard.writeText(ta.value).then(done, fallback); } catch(e){ fallback(); }
-  }
-  function frCodeBox(){
-    var box = document.getElementById('frCode'); if (!box) return;
-    var viewer = !FR.owner && (FR.off || FR.canWrite === false);
-    if (!FR.owner && !viewer){ box.hidden = true; return; }
-    if (box.getAttribute('data-mode') === (FR.owner ? 'own' : 'view') && !box.hidden) return;   // 쓰는 중인 글은 그대로
-    box.setAttribute('data-mode', FR.owner ? 'own' : 'view'); box.hidden = false; box.innerHTML = '';
-    function el(tag, cls, html){ var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; box.appendChild(e); return e; }
-    if (FR.owner){
-      el('div', '', '<b class="t">📥 친구 기록 등록</b><br>친구가 보낸 <b>기록 코드</b>를 붙여 넣으세요. 여러 개를 한꺼번에 넣어도 돼요.');
-      var ta = el('textarea'); ta.id = 'frPaste'; ta.placeholder = 'OSR1.…';
-      var row = el('div', 'row'), go = document.createElement('button'); go.className = 'fr-btn'; go.textContent = '🏆 순위표에 올리기'; row.appendChild(go);
-      var msg = el('div', 'msg');
-      go.addEventListener('click', function(){
-        go.disabled = true; msg.className = 'msg'; msg.textContent = '올리는 중…';
-        frRegister(ta.value).then(function(res){
-          go.disabled = false;
-          msg.className = 'msg' + (res.every(function(r){ return r.bad; }) ? ' bad' : '');
-          msg.textContent = res.map(function(r){ return r.msg; }).join('\n');
-          if (res.some(function(r){ return !r.bad; })) ta.value = '';
-        });
-      });
-    } else {
-      var nm = String(SAVED_NAME || '');
-      el('div', '', '<b class="t">📤 내 기록 코드</b><br>코드를 만들어 오락실 주인에게 <b>카톡으로</b> 보내 주세요. 주인이 등록하면 순위표에 내 이름으로 올라가요.' +
-        (nm ? '' : '<br><span style="color:#ffd166">먼저 오락실 첫 화면에서 <b>플레이어 이름</b>을 정해 주세요.</span>'));
-      var row2 = el('div', 'row'), mk = document.createElement('button'); mk.className = 'fr-btn'; mk.textContent = '📤 코드 만들기'; row2.appendChild(mk);
-      var out = el('textarea'); out.id = 'frMyCode'; out.readOnly = true; out.hidden = true;
-      var row3 = el('div', 'row'), cp = document.createElement('button'); cp.className = 'fr-btn off'; cp.textContent = '📋 복사하기'; row3.appendChild(cp); row3.hidden = true;
-      var note = el('div', 'msg'); note.hidden = true;
-      mk.addEventListener('click', function(){
-        out.value = frMakeCode(); out.hidden = false; row3.hidden = false; mk.textContent = '🔄 새로 만들기';
-        var d = frMyDoc(); note.hidden = false;
-        note.textContent = (d.n || '플레이어') + ' · 게임 ' + Object.keys(d.b).length + '개 기록 · 도장 ' + d.st + '개\n기록이 오르면 새로 만들어 다시 보내 주세요.';
-      });
-      cp.addEventListener('click', function(){ frCopy(out, cp); });
-    }
-  }
   // 기록판 탭
   function recTab(t){
     document.querySelectorAll('#recBoard .hub-tab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-rt') === t); });
@@ -12218,7 +12120,7 @@
   var _rw = renderWallet; renderWallet = function(){ _rw(); frQueue(); };
   document.getElementById('arcNameSave').addEventListener('click', frQueue);
   setTimeout(frConnect, 0);
-  if (location.hash === '#econtest') window.__fr = { st: FR, render: frRender, tab: recTab, toggle: frToggle, doc: frMyDoc, upload: frUpload, makeCode: frMakeCode, parse: frParseCode, register: frRegister };
+  if (location.hash === '#econtest') window.__fr = { st: FR, render: frRender, tab: recTab, toggle: frToggle, doc: frMyDoc, upload: frUpload };
 /*@@MODULE boot@@*/
 })();
 </script>
