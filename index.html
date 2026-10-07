@@ -1495,7 +1495,7 @@
 <div class="mini" id="mgJewel" hidden>
   <div class="mini-head">
     <button class="icon-btn mini-home" aria-label="오락실로">🏠</button>
-    <div class="mini-title">💎 보석 맞추기</div>
+    <div class="mini-title">🐾 동물 콤보</div>
     <span class="money-chip mini-money">💰 <b class="wallet-val">0원</b></span>
     <button class="icon-btn mini-pause" aria-label="일시정지">⏸</button>
   </div>
@@ -4852,7 +4852,7 @@
     // 🧩 퍼즐 코너 (준비 중 · 하나씩 추가 예정)
     { id: 'layton',   ico: '🔍', name: '메이 교수와 수수께끼 마을', price: 50000, section: 'puzzle', color: '#7048e8', desc: '친칠라 고양이 교수와 퍼즐을 풀며 사건 해결' },
     { id: 'blockfit', ico: '🧊', name: '블록 채우기',   price: 40000, section: 'puzzle', color: '#20c997', desc: '블록 3개를 판에 끌어다 놓고 줄을 채워 지워요' },
-    { id: 'jewel',    ico: '💎', name: '보석 맞추기',   price: 60000, section: 'puzzle', color: '#e64980', desc: '자리를 바꿔 같은 색 보석 3개를 맞춰요' },
+    { id: 'jewel',    ico: '🐾', name: '동물 콤보',     price: 60000, section: 'puzzle', color: '#7950f2', desc: '1분 동안 같은 동물 3마리를 맞추며 콤보를 이어가요' },
     { id: 'memory',   ico: '🃏', name: '같은 그림 찾기', price: 20000, section: 'puzzle', color: '#7048e8', desc: '카드를 두 장씩 뒤집어 짝을 맞춰요' },
     { id: 'slide',    ico: '🧩', name: '숫자 밀기 퍼즐', price: 20000, section: 'puzzle', color: '#f59f00', desc: '빈칸으로 조각을 밀어 1~15 순서대로' },
     { id: 'nonogram', ico: '🔲', name: '네모 칠하기',   price: 40000, section: 'puzzle', color: '#495057', desc: '숫자 힌트로 칸을 칠해 그림을 완성해요' },
@@ -5006,7 +5006,7 @@
 
   // 💰 게임별 보상 배율: 보통 실력으로 1분 하면 약 1,000원 (스토리형 게임은 조금 더)
   var ECON_RATE = { blocks: 0.7, breakout: 0.4, snake: 0.25, mines: 0.5, merge: 0.18, crossy: 2.0, fruit: 1.0, stack: 0.4, pang: 0.1,
-                    shooter: 0.2, blockfit: 1.6, jewel: 0.25, memory: 2.4, nonogram: 0.15, sudoku: 1.0, slide: 2.0, sokoban: 1.4, layton: 1.5 };
+                    shooter: 0.2, blockfit: 1.6, jewel: 0.05, memory: 2.4, nonogram: 0.15, sudoku: 1.0, slide: 2.0, sokoban: 1.4, layton: 1.5 };
   function econRate(id){ return ECON_RATE[id] != null ? ECON_RATE[id] : 1; }
   function rateTxt(r){ return r >= 1 ? '1점 = ' + (Math.round(r * 10) / 10) + '코인' : Math.round(1 / r) + '점 = 1코인'; }
 
@@ -9399,76 +9399,129 @@
     if (bf.drag && hv){ var pc2 = bf.tray[bf.drag.i]; pc2.cells.forEach(function(cc){ bfCell(c, hv.px + cc[0] * s, hv.py + cc[1] * s, s, pc2.color, 0.95); }); }
   }
 
-  /* ---------- 💎 보석 맞추기 ---------- */
-  var JW_COL = ['#ff4d6d', '#ff922b', '#fcc419', '#51cf66', '#339af0', '#b197fc'];
-  var jw = { n: 8, g: null, cell: 40, ox: 0, oy: 0, moves: 30, busy: false, drag: null, swap: null, fade: [], combo: 0, idc: 0 };
+  /* ---------- 🐾 동물 콤보 (예전 💎 보석 맞추기 자리 · id는 그대로 'jewel') ----------
+     1분 시간제(맞출 때마다 시간이 늘어남, 최대 90초) · 같은 동물 3마리 이상 맞추기 · 콤보는 4초 안에 다음 맞추기를 하면 이어짐
+     · 🔥 피버 게이지가 차면 7초 동안 점수 2배(+2초) · 4마리 → 줄 폭탄 · 5마리 → 🌈 무지개(한 동물 전부)
+     · 밀어서 바꾸거나, 하나 누르고 옆을 눌러서 바꾸기 · 4초 가만히 있으면 힌트 */
+  var JW_ANI = ['🐶', '🐱', '🐰', '🐻', '🐷', '🐸'];
+  // 배경색: 색차(CIEDE2000)로 골라 가장 비슷한 두 색도 ΔE 26 이상 · 적록색약 눈으로도 ΔE 14 이상 (예전엔 토끼·돼지 ΔE 6)
+  var JW_COL = ['#74c0fc', '#ffe066', '#9775fa', '#a0703f', '#f06595', '#51cf66'];   // 🐶 하늘 · 🐱 노랑 · 🐰 보라 · 🐻 갈색 · 🐷 분홍 · 🐸 초록
+  var JW_N = 7, JW_TIME = 60, JW_COMBO_T = 4.0, JW_FEVER_T = 7;
+  // ⏱️ 시간 늘리기: 내가 바꿔서 맞출 때만 (떨어져서 저절로 터지는 연쇄는 제외) · 3개 +0.5초 · 4개 +1초 · 5개/🌈 +2초 · 피버 시작 +2초 · 최대 90초
+  // (처음엔 +1/+2/+3/피버 +5초였는데 자동 플레이로 재 보니 빠른 사람은 4분 넘게 안 끝나서 줄임: sim_animal.py)
+  var JW_TIME_MAX = 90, JW_ADD = { 3: 0.5, 4: 1, 5: 2, rb: 2 }, JW_FEVER_ADD = 2;
+  var jw = { n: JW_N, g: null, cell: 40, ox: 0, oy: 0, top: 0, time: JW_TIME, busy: false, drag: null, sel: null, swap: null, fade: [], combo: 0, comboT: 0,
+             fever: 0, feverT: 0, idle: 0, hint: null, ended: false, idc: 0, best: 0, t: 0, floats: [] };
   var jewelGame = MiniGame({
-    el: 'mgJewel', id: 'jewel', title: '💎 보석 맞추기',
-    howto: '보석을 <b>옆으로 밀어</b> 자리를 바꿔요<br>같은 색 3개 이상이 한 줄이 되면 터져요 · 30번 움직일 수 있어요<br><span style="font-size:13px">4개 → 줄 폭탄 보석 · 5개 → 🌈 무지개 보석(한 색 전부) · 연쇄가 이어지면 점수 배율 UP</span>',
+    el: 'mgJewel', id: 'jewel', title: '🐾 동물 콤보',
+    howto: '<b>1분</b> 동안 같은 동물 <b>3마리 이상</b>을 한 줄로 맞춰요 · 맞출 때마다 <b>시간이 늘어요</b><br>동물을 <b>옆으로 밀거나</b>, 하나 누르고 옆을 눌러 자리를 바꿔요<br><span style="font-size:13px">4초 안에 또 맞추면 <b>콤보</b>가 이어져 점수 UP · 🔥 게이지가 차면 <b>피버 타임</b>(점수 2배 · +2초)<br>3개 +0.5초 · 4개 +1초 · 5개/🌈 +2초 (최대 90초)<br>4마리 → 줄 폭탄 · 5마리 → 🌈 무지개(한 동물 전부) · 가만히 있으면 힌트가 반짝여요</span>',
     onResize: function(g){ layoutJw(g); },
-    contBase: 1500, contDesc: '10번 더 움직이기',
-    onContinue: function(g){ jw.moves += 10; jw.busy = false; updJw(); },
-    onStart: function(g){ layoutJw(g); jw.moves = 30; jw.busy = false; jw.fade = []; jw.combo = 0; newJwBoard(); updJw(); },
+    contBase: 1500, contDesc: '10초 더 하기',
+    onContinue: function(g){ jw.time += 10; jw.ended = false; jw.busy = false; updJw(); },
+    onStart: function(g){ layoutJw(g); startJw(); },
     onFrame: function(g, dt){ stepJw(dt); },
     onDraw: function(g){ drawJw(g); },
-    onDown: function(g, p){ if (!g.running || g.paused || jw.busy) return; var x = Math.floor((p.x - jw.ox) / jw.cell), y = Math.floor((p.y - jw.oy) / jw.cell); if (x >= 0 && y >= 0 && x < 8 && y < 8) jw.drag = { x: x, y: y, sx: p.x, sy: p.y }; },
+    onDown: function(g, p){
+      if (!g.running || g.paused || jw.ended) return;
+      var cell = jwCellAt(p); if (!cell) return;
+      jw.drag = { x: cell[0], y: cell[1], sx: p.x, sy: p.y, moved: false };
+    },
     onMove: function(g, p, pressed){
-      if (!jw.drag || !pressed || jw.busy) return;
+      if (!jw.drag || !pressed || jw.drag.moved) return;
       var dx = p.x - jw.drag.sx, dy = p.y - jw.drag.sy;
       if (Math.max(Math.abs(dx), Math.abs(dy)) < jw.cell * 0.35) return;
+      jw.drag.moved = true;
+      if (jw.busy) return;
       var tx = jw.drag.x + (Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0), ty = jw.drag.y + (Math.abs(dx) > Math.abs(dy) ? 0 : Math.sign(dy));
-      var fx = jw.drag.x, fy = jw.drag.y; jw.drag = null;
-      if (tx < 0 || ty < 0 || tx > 7 || ty > 7) return;
-      trySwap(fx, fy, tx, ty);
+      if (tx < 0 || ty < 0 || tx >= JW_N || ty >= JW_N) return;
+      jw.sel = null; trySwap(jw.drag.x, jw.drag.y, tx, ty);
     },
-    onUp: function(){ jw.drag = null; }
+    onUp: function(){
+      var d = jw.drag; jw.drag = null;
+      if (!d || d.moved || jw.busy || jw.ended || !jewelGame.running) return;
+      // 누르기: 하나 고르고 → 바로 옆을 누르면 바꾸기
+      if (jw.sel && Math.abs(jw.sel[0] - d.x) + Math.abs(jw.sel[1] - d.y) === 1){ var s0 = jw.sel; jw.sel = null; trySwap(s0[0], s0[1], d.x, d.y); return; }
+      jw.sel = (jw.sel && jw.sel[0] === d.x && jw.sel[1] === d.y) ? null : [d.x, d.y];
+      jw.idle = 0;
+      sfx(function(a, t){ clickTone(a, 900, t, 0.04, 0.06, 'triangle', 1100); });
+    }
   });
-  function layoutJw(g){ var b = Math.min(g.W - 12, g.H - 12); jw.cell = b / 8; jw.ox = (g.W - b) / 2; jw.oy = (g.H - b) / 2; }
+  function layoutJw(g){
+    var band = 46, b = Math.min(g.W - 12, g.H - 12 - band);
+    jw.cell = b / JW_N; jw.ox = (g.W - b) / 2; jw.top = Math.max(4, (g.H - b - band) / 2); jw.oy = jw.top + band; jw.board = b;
+  }
+  function jwCellAt(p){ var x = Math.floor((p.x - jw.ox) / jw.cell), y = Math.floor((p.y - jw.oy) / jw.cell); return (x >= 0 && y >= 0 && x < JW_N && y < JW_N) ? [x, y] : null; }
   function gem(c){ return { c: c, sp: null, id: ++jw.idc, dy: 0, pop: 0 }; }
+  function startJw(){
+    jw.time = JW_TIME; jw.busy = false; jw.fade = []; jw.combo = 0; jw.comboT = 0; jw.fever = 0; jw.feverT = 0; jw.idle = 0; jw.hint = null;
+    jw.sel = null; jw.drag = null; jw.swap = null; jw.waitFade = null; jw.waitFall = false; jw.ended = false; jw.best = 0; jw.floats = [];
+    newJwBoard(); updJw();
+  }
   function newJwBoard(){
     jw.g = [];
-    for (var y = 0; y < 8; y++){ jw.g.push([]); for (var x = 0; x < 8; x++){ var c; do { c = Math.floor(Math.random() * 6); } while ((x >= 2 && jw.g[y][x-1].c === c && jw.g[y][x-2].c === c) || (y >= 2 && jw.g[y-1][x].c === c && jw.g[y-2][x].c === c)); jw.g[y].push(gem(c)); } }
-    if (!jwHasMove()) newJwBoard();
+    for (var y = 0; y < JW_N; y++){ jw.g.push([]); for (var x = 0; x < JW_N; x++){ var c; do { c = Math.floor(Math.random() * 6); } while ((x >= 2 && jw.g[y][x-1].c === c && jw.g[y][x-2].c === c) || (y >= 2 && jw.g[y-1][x].c === c && jw.g[y-2][x].c === c)); jw.g[y].push(gem(c)); } }
+    if (!jwFindMove()) newJwBoard();
   }
-  function updJw(){ jewelGame.setExtra('🔄 ' + jw.moves + '번 남음' + (jw.combo >= 2 ? ' · 🔥×' + jw.combo : '')); }
+  function updJw(){
+    jewelGame.setExtra('⏱️ ' + Math.max(0, Math.ceil(jw.time)) + '초' + (jw.combo >= 2 ? ' · 🔥 콤보 ' + jw.combo : '') + (jw.feverT > 0 ? ' · ✨피버' : ''));
+  }
   function findRuns(){
-    var runs = [];
-    for (var y = 0; y < 8; y++){ var x = 0; while (x < 8){ var c0 = jw.g[y][x] && jw.g[y][x].c, e = x; if (c0 !== undefined && c0 >= 0){ while (e + 1 < 8 && jw.g[y][e+1] && jw.g[y][e+1].c === c0) e++; if (e - x >= 2) runs.push({ dir: 'h', y: y, x0: x, x1: e, len: e - x + 1 }); } x = e + 1; } }
-    for (var x2 = 0; x2 < 8; x2++){ var y2 = 0; while (y2 < 8){ var c1 = jw.g[y2][x2] && jw.g[y2][x2].c, e2 = y2; if (c1 !== undefined && c1 >= 0){ while (e2 + 1 < 8 && jw.g[e2+1][x2] && jw.g[e2+1][x2].c === c1) e2++; if (e2 - y2 >= 2) runs.push({ dir: 'v', x: x2, y0: y2, y1: e2, len: e2 - y2 + 1 }); } y2 = e2 + 1; } }
+    var runs = [], N = JW_N;
+    for (var y = 0; y < N; y++){ var x = 0; while (x < N){ var c0 = jw.g[y][x] && jw.g[y][x].c, e = x; if (c0 !== undefined && c0 >= 0){ while (e + 1 < N && jw.g[y][e+1] && jw.g[y][e+1].c === c0) e++; if (e - x >= 2) runs.push({ dir: 'h', y: y, x0: x, x1: e, len: e - x + 1 }); } x = e + 1; } }
+    for (var x2 = 0; x2 < N; x2++){ var y2 = 0; while (y2 < N){ var c1 = jw.g[y2][x2] && jw.g[y2][x2].c, e2 = y2; if (c1 !== undefined && c1 >= 0){ while (e2 + 1 < N && jw.g[e2+1][x2] && jw.g[e2+1][x2].c === c1) e2++; if (e2 - y2 >= 2) runs.push({ dir: 'v', x: x2, y0: y2, y1: e2, len: e2 - y2 + 1 }); } y2 = e2 + 1; } }
     return runs;
   }
-  function jwHasMove(){
-    for (var y = 0; y < 8; y++) for (var x = 0; x < 8; x++){
-      if (jw.g[y][x].sp === 'rb') return true;
+  // 바꿀 수 있는 자리 하나 (힌트 · 섞기 판단)
+  function jwFindMove(){
+    var N = JW_N;
+    for (var y = 0; y < N; y++) for (var x = 0; x < N; x++){
+      if (jw.g[y][x].sp === 'rb') return [x, y, x + (x < N - 1 ? 1 : -1), y];
       var nb = [[1, 0], [0, 1]];
       for (var k = 0; k < 2; k++){
-        var nx = x + nb[k][0], ny = y + nb[k][1]; if (nx > 7 || ny > 7) continue;
+        var nx = x + nb[k][0], ny = y + nb[k][1]; if (nx >= N || ny >= N) continue;
         var a = jw.g[y][x]; jw.g[y][x] = jw.g[ny][nx]; jw.g[ny][nx] = a;
         var ok = findRuns().length > 0;
         a = jw.g[y][x]; jw.g[y][x] = jw.g[ny][nx]; jw.g[ny][nx] = a;
-        if (ok) return true;
+        if (ok) return [x, y, nx, ny];
       }
     }
-    return false;
+    return null;
+  }
+  function addJwTime(sec, x, y){
+    if (jw.ended || !(sec > 0)) return;
+    var before = jw.time; jw.time = Math.min(JW_TIME_MAX, jw.time + sec);
+    var got = jw.time - before; if (got <= 0) return;
+    if (x != null) jw.floats.push({ x: jw.ox + (x + 0.5) * jw.cell, y: jw.oy + (y + 0.5) * jw.cell - jw.cell * 0.55, txt: '⏱️+' + (Math.round(got * 10) / 10) + '초', t: 0, col: '#ffd43b' });
+    updJw();
+  }
+  // 맞추기 한 번 (바꿔서든 떨어져서든): 콤보 이어가기
+  function jwMatched(){
+    jw.combo = jw.comboT > 0 ? jw.combo + 1 : 1;
+    jw.comboT = jw.feverT > 0 ? JW_COMBO_T + 1 : JW_COMBO_T;
+    if (jw.combo > jw.best) jw.best = jw.combo;
+    if (jw.combo >= 10 && jw.combo % 10 === 0){ var cb = jw.combo; setTimeout(function(){ jewelGame.bonus(300 * cb / 10, '🔥 ' + cb + '콤보'); }, 250); }
+    updJw();
   }
   function trySwap(x1, y1, x2, y2){
-    jw.busy = true;
+    if (jw.busy || jw.ended) return;
+    jw.busy = true; jw.idle = 0; jw.hint = null;
     var A = jw.g[y1][x1], B = jw.g[y2][x2];
     jw.swap = { x1: x1, y1: y1, x2: x2, y2: y2, t: 0, back: false };
     sfx(function(a, t){ clickTone(a, 600, t, 0.05, 0.1, 'triangle', 800); });
     jw.afterSwap = function(){
       jw.g[y1][x1] = B; jw.g[y2][x2] = A;
-      // 🌈 무지개 보석과 바꾸면 그 색 전부
+      // 🌈 무지개와 바꾸면 그 동물 전부 (무지개끼리면 판 전체)
       if (A.sp === 'rb' || B.sp === 'rb'){
         var other = A.sp === 'rb' ? B : A, rb = A.sp === 'rb' ? A : B, clr = {};
-        for (var y = 0; y < 8; y++) for (var x = 0; x < 8; x++){ var q = jw.g[y][x]; if (q === rb || (other.sp !== 'rb' && q.c === other.c) || other.sp === 'rb') clr[y + ',' + x] = 1; }
-        jw.moves--; jw.combo = 1; updJw();
-        jewelGame.pop('🌈 무지개 폭발!');
+        for (var y = 0; y < JW_N; y++) for (var x = 0; x < JW_N; x++){ var q = jw.g[y][x]; if (q === rb || (other.sp !== 'rb' && q.c === other.c) || other.sp === 'rb') clr[y + ',' + x] = 1; }
+        jwMatched(); addJwTime(JW_ADD.rb, x2, y2); jewelGame.pop('🌈 무지개 폭발!');
         clearCells(clr); return;
       }
       var runs = findRuns();
       if (!runs.length){ jw.swap = { x1: x1, y1: y1, x2: x2, y2: y2, t: 0, back: true }; jw.afterSwap = function(){ jw.g[y1][x1] = A; jw.g[y2][x2] = B; jw.busy = false; }; sfx(function(a, t){ clickTone(a, 250, t, 0.08, 0.1, 'triangle', 200); }); return; }
-      jw.moves--; jw.combo = 1; updJw();
+      jwMatched();
+      var mx = 3; runs.forEach(function(r){ if (r.len > mx) mx = r.len; });
+      addJwTime(JW_ADD[Math.min(5, mx)], x2, y2);
       resolveRuns(runs, { x: x2, y: y2 });
     };
   }
@@ -9486,34 +9539,42 @@
     });
     clearCells(clr, makes);
   }
+  function jwMult(){ return Math.min(5, 1 + 0.2 * (jw.combo - 1)) * (jw.feverT > 0 ? 2 : 1); }
   function clearCells(clr, makes){
-    // 특수 보석이 터지면 줄 전체
-    var changed = true;
+    // 줄 폭탄이 터지면 그 줄 전체
+    var changed = true, N = JW_N;
     while (changed){
       changed = false;
       Object.keys(clr).forEach(function(k){
         var p = k.split(','), y = +p[0], x = +p[1], q = jw.g[y][x];
-        if (q && q.sp === 'h'){ q.sp = 'used'; for (var i = 0; i < 8; i++){ if (!clr[y + ',' + i]){ clr[y + ',' + i] = 1; changed = true; } } }
-        if (q && q.sp === 'v'){ q.sp = 'used'; for (var j = 0; j < 8; j++){ if (!clr[j + ',' + x]){ clr[j + ',' + x] = 1; changed = true; } } }
+        if (q && q.sp === 'h'){ q.sp = 'used'; for (var i = 0; i < N; i++){ if (!clr[y + ',' + i]){ clr[y + ',' + i] = 1; changed = true; } } }
+        if (q && q.sp === 'v'){ q.sp = 'used'; for (var j = 0; j < N; j++){ if (!clr[j + ',' + x]){ clr[j + ',' + x] = 1; changed = true; } } }
       });
     }
-    var n = 0;
-    Object.keys(clr).forEach(function(k){ var p = k.split(','), y = +p[0], x = +p[1]; var q = jw.g[y][x]; if (!q) return; jw.fade.push({ x: x, y: y, c: q.c, t: 0 }); jw.g[y][x] = null; n++; });
+    var n = 0, sx = 0, sy = 0;
+    Object.keys(clr).forEach(function(k){ var p = k.split(','), y = +p[0], x = +p[1]; var q = jw.g[y][x]; if (!q) return; jw.fade.push({ x: x, y: y, c: q.c, t: 0 }); jw.g[y][x] = null; n++; sx += x; sy += y; });
     (makes || []).forEach(function(m){ var q = gem(m.c); q.sp = m.sp; if (m.sp === 'rb') q.c = -1; q.pop = 1; jw.g[m.y][m.x] = q; });
-    var gained = n * 10 * jw.combo;
+    var gained = Math.round(n * 10 * jwMult());
     jewelGame.setScore(jewelGame.score + gained);
+    if (n) jw.floats.push({ x: jw.ox + (sx / n + 0.5) * jw.cell, y: jw.oy + (sy / n + 0.5) * jw.cell, txt: '+' + gained, t: 0 });
+    // 🔥 피버 게이지: 많이 · 연달아 터뜨릴수록 빨리 참
+    if (jw.feverT <= 0){
+      jw.fever += n * 0.02 + Math.min(jw.combo, 10) * 0.01;
+      if (jw.fever >= 1){ jw.fever = 0; jw.feverT = JW_FEVER_T; addJwTime(JW_FEVER_ADD); jewelGame.pop('🔥 피버 타임!', '7초 동안 점수 2배 · +' + JW_FEVER_ADD + '초'); sfx(function(a, t){ ['C5', 'E5', 'G5', 'C6'].forEach(function(nm, i){ playTone(a, NOTE_FREQ[nm], t + i * 0.06, 0.12, null, 0.08); }); }); }
+    }
     sfxPop(n + jw.combo * 2);
-    if (jw.combo >= 3) jewelGame.pop('🔥 ' + jw.combo + '연쇄!', '+' + gained + '점');
-    if (jw.combo === 4) setTimeout(function(){ jewelGame.bonus(500, '4연쇄 보너스'); }, 200);
-    if ((makes || []).some(function(m){ return m.sp === 'rb'; })) setTimeout(function(){ jewelGame.pop('🌈 무지개 보석 탄생!'); }, 150);
-    jw.waitFade = 0.22;
+    if (jw.combo >= 3 && jw.combo % 5 !== 0) jewelGame.pop('🔥 ' + jw.combo + '콤보!');
+    else if (jw.combo >= 5) jewelGame.pop('🔥🔥 ' + jw.combo + '콤보!', '×' + jwMult().toFixed(1));
+    if ((makes || []).some(function(m){ return m.sp === 'rb'; })) setTimeout(function(){ jewelGame.pop('🌈 무지개 동물 탄생!'); }, 150);
+    jw.waitFade = 0.16;
   }
   function gravityJw(){
-    for (var x = 0; x < 8; x++){
+    var N = JW_N;
+    for (var x = 0; x < N; x++){
       var col = [];
-      for (var y = 7; y >= 0; y--) if (jw.g[y][x]) col.push({ q: jw.g[y][x], from: y });
-      var missing = 8 - col.length;
-      for (var y2 = 7, i = 0; y2 >= 0; y2--, i++){
+      for (var y = N - 1; y >= 0; y--) if (jw.g[y][x]) col.push({ q: jw.g[y][x], from: y });
+      var missing = N - col.length;
+      for (var y2 = N - 1, i = 0; y2 >= 0; y2--, i++){
         if (i < col.length){ var it = col[i]; jw.g[y2][x] = it.q; it.q.dy += (y2 - it.from) * jw.cell; }
         else { var ng = gem(Math.floor(Math.random() * 6)); ng.dy = (missing + 1) * jw.cell; jw.g[y2][x] = ng; }
       }
@@ -9521,61 +9582,106 @@
     jw.waitFall = true;
   }
   function stepJw(dt){
-    if (jw.swap){ jw.swap.t += dt / 0.14; if (jw.swap.t >= 1){ var f = jw.afterSwap; jw.swap = null; jw.afterSwap = null; if (f) f(); } }
-    jw.fade.forEach(function(f){ f.t += dt; }); jw.fade = jw.fade.filter(function(f){ return f.t < 0.3; });
+    jw.t += dt;
+    var live = jewelGame.running && !jewelGame.paused && !jewelGame.over;
+    if (live && !jw.ended){
+      jw.time -= dt;
+      if (jw.feverT > 0){ jw.feverT -= dt; if (jw.feverT <= 0) jw.feverT = 0; }
+      if (!jw.busy){ if (jw.comboT > 0){ jw.comboT -= dt; if (jw.comboT <= 0){ jw.comboT = 0; jw.combo = 0; } } jw.idle += dt; }
+      if (Math.floor(jw.time + dt) !== Math.floor(jw.time)) updJw();
+      if (jw.idle > 4 && !jw.hint && !jw.busy) jw.hint = jwFindMove();
+      if (jw.time <= 0){ jw.time = 0; jw.ended = true; jw.sel = null; jw.hint = null; jewelGame.pop('⏱️ 시간 끝!'); updJw(); }
+    }
+    jw.floats.forEach(function(f){ f.t += dt; }); jw.floats = jw.floats.filter(function(f){ return f.t < 0.8; });
+    if (jw.swap){ jw.swap.t += dt / 0.12; if (jw.swap.t >= 1){ var f = jw.afterSwap; jw.swap = null; jw.afterSwap = null; if (f) f(); } }
+    jw.fade.forEach(function(f){ f.t += dt; }); jw.fade = jw.fade.filter(function(f){ return f.t < 0.25; });
     var falling = false;
-    if (jw.g) for (var y = 0; y < 8; y++) for (var x = 0; x < 8; x++){ var q = jw.g[y][x]; if (!q) continue; if (q.pop > 0) q.pop -= dt * 3; if (q.dy > 0){ q.dy = Math.max(0, q.dy - dt * jw.cell * 14); falling = true; } }
+    if (jw.g) for (var y = 0; y < JW_N; y++) for (var x = 0; x < JW_N; x++){ var q = jw.g[y][x]; if (!q) continue; if (q.pop > 0) q.pop -= dt * 3; if (q.dy > 0){ q.dy = Math.max(0, q.dy - dt * jw.cell * 18); falling = true; } }
     if (jw.waitFade != null){ jw.waitFade -= dt; if (jw.waitFade <= 0){ jw.waitFade = null; gravityJw(); } return; }
     if (jw.waitFall && !falling){
       jw.waitFall = false;
       var runs = findRuns();
-      if (runs.length){ jw.combo++; updJw(); resolveRuns(runs, null); return; }
+      if (runs.length){ jwMatched(); resolveRuns(runs, null); return; }
       jw.busy = false; updJw();
-      if (!jwHasMove()){ jewelGame.pop('🔀 섞는 중…'); newJwBoard(); }
-      if (jw.moves <= 0){ setTimeout(function(){ if (jewelGame.running) jewelGame.finish(); }, 600); jewelGame.pop('이동 끝!'); }
+      if (!jwFindMove()){ jewelGame.pop('🔀 섞는 중…'); newJwBoard(); }
+    }
+    // 시간이 끝나고 판이 멈추면 끝
+    if (jw.ended && !jw.busy && !jw.swap && live && !jw.finishing){
+      jw.finishing = true;
+      setTimeout(function(){ jw.finishing = false; if (jewelGame.running && jw.ended) jewelGame.finish(); }, 700);
     }
   }
-  function drawGemShape(c, cx, cy, r, q){
+  function rr(c, x, y, w, h, r){ c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+  function drawAnimal(c, cx, cy, r, q){
     if (q.c === -1 || q.sp === 'rb'){
       var rg = c.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 1, cx, cy, r);
       ['#ff6b6b', '#ffd43b', '#69db7c', '#4dabf7', '#b197fc'].forEach(function(col, i){ rg.addColorStop(i / 4, col); });
-      c.fillStyle = rg; c.beginPath(); c.arc(cx, cy, r * 0.9, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#fff'; c.font = '900 ' + Math.round(r * 0.8) + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('★', cx, cy + 1); return;
+      c.fillStyle = rg; rr(c, cx - r, cy - r, r * 2, r * 2, r * 0.45); c.fill();
+      c.fillStyle = '#000'; c.font = Math.round(r * 1.15) + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🌈', cx, cy + 1); return;
     }
-    var col = JW_COL[q.c], gr = c.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
-    gr.addColorStop(0, '#fff'); gr.addColorStop(0.25, col); gr.addColorStop(1, shade(col, -0.35));
-    c.fillStyle = gr; c.beginPath();
-    var k = q.c;
-    if (k === 0){ c.moveTo(cx, cy - r); c.lineTo(cx + r * 0.85, cy - r * 0.2); c.lineTo(cx, cy + r); c.lineTo(cx - r * 0.85, cy - r * 0.2); }
-    else if (k === 1){ c.arc(cx, cy, r * 0.85, 0, Math.PI * 2); }
-    else if (k === 2){ for (var i = 0; i < 10; i++){ var rr = i % 2 ? r * 0.45 : r * 0.95, a = -Math.PI / 2 + i * Math.PI / 5; c.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } }
-    else if (k === 3){ c.moveTo(cx, cy - r * 0.9); c.lineTo(cx + r * 0.9, cy); c.lineTo(cx, cy + r * 0.9); c.lineTo(cx - r * 0.9, cy); }
-    else if (k === 4){ for (var j = 0; j < 6; j++){ var a2 = Math.PI / 6 + j * Math.PI / 3; c.lineTo(cx + Math.cos(a2) * r * 0.9, cy + Math.sin(a2) * r * 0.9); } }
-    else { c.moveTo(cx, cy - r * 0.9); c.lineTo(cx + r * 0.9, cy + r * 0.7); c.lineTo(cx - r * 0.9, cy + r * 0.7); }
-    c.closePath(); c.fill();
-    c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = 1.5; c.stroke();
-    if (q.sp === 'h' || q.sp === 'v'){ c.strokeStyle = '#fff'; c.lineWidth = 2.5; for (var s2 = -1; s2 <= 1; s2++){ c.beginPath(); if (q.sp === 'h'){ c.moveTo(cx - r * 0.6, cy + s2 * r * 0.28); c.lineTo(cx + r * 0.6, cy + s2 * r * 0.28); } else { c.moveTo(cx + s2 * r * 0.28, cy - r * 0.6); c.lineTo(cx + s2 * r * 0.28, cy + r * 0.6); } c.stroke(); } }
+    var col = JW_COL[q.c], gr = c.createLinearGradient(cx, cy - r, cx, cy + r);
+    gr.addColorStop(0, shade(col, 0.25)); gr.addColorStop(1, shade(col, -0.15));
+    c.fillStyle = gr; rr(c, cx - r, cy - r, r * 2, r * 2, r * 0.45); c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.35)'; rr(c, cx - r * 0.75, cy - r * 0.88, r * 1.5, r * 0.45, r * 0.2); c.fill();
+    c.fillStyle = '#000'; c.font = Math.round(r * 1.25) + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';   // (색 이모지는 fillStyle의 투명도를 따라가므로 불투명하게)
+    c.fillText(JW_ANI[q.c], cx, cy + r * 0.06);
+    if (q.sp === 'h' || q.sp === 'v'){
+      c.strokeStyle = 'rgba(255,255,255,0.95)'; c.lineWidth = Math.max(2, r * 0.1); c.setLineDash([r * 0.25, r * 0.18]);
+      c.beginPath(); if (q.sp === 'h'){ c.moveTo(cx - r * 0.95, cy + r * 0.78); c.lineTo(cx + r * 0.95, cy + r * 0.78); c.moveTo(cx - r * 0.95, cy - r * 0.78); c.lineTo(cx + r * 0.95, cy - r * 0.78); }
+      else { c.moveTo(cx - r * 0.78, cy - r * 0.95); c.lineTo(cx - r * 0.78, cy + r * 0.95); c.moveTo(cx + r * 0.78, cy - r * 0.95); c.lineTo(cx + r * 0.78, cy + r * 0.95); }
+      c.stroke(); c.setLineDash([]);
+      c.font = '900 ' + Math.round(r * 0.5) + 'px sans-serif'; c.fillStyle = '#fff'; c.fillText(q.sp === 'h' ? '↔' : '↕', cx + r * 0.62, cy - r * 0.55);
+    }
   }
   function drawJw(g){
-    var c = g.c; c.fillStyle = '#2a1b3d'; c.fillRect(0, 0, g.W, g.H);
+    var c = g.c, fev = jw.feverT > 0;
+    var bg = c.createLinearGradient(0, 0, 0, g.H);
+    if (fev){ var h = (jw.t * 120) % 360; bg.addColorStop(0, 'hsl(' + h + ',70%,30%)'); bg.addColorStop(1, 'hsl(' + ((h + 60) % 360) + ',70%,18%)'); }
+    else { bg.addColorStop(0, '#26345e'); bg.addColorStop(1, '#141a33'); }   // 남색: 6가지 동물 색 모두와 잘 구분됨
+    c.fillStyle = bg; c.fillRect(0, 0, g.W, g.H);
     if (!jw.g) return;
-    var s = jw.cell;
-    for (var y = 0; y < 8; y++) for (var x = 0; x < 8; x++){ c.fillStyle = (x + y) % 2 ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.1)'; c.fillRect(jw.ox + x * s, jw.oy + y * s, s, s); }
-    jw.fade.forEach(function(f){ var k = f.t / 0.3; c.globalAlpha = 1 - k; c.fillStyle = f.c >= 0 ? JW_COL[f.c] : '#fff'; c.beginPath(); c.arc(jw.ox + (f.x + 0.5) * s, jw.oy + (f.y + 0.5) * s, s * 0.4 * (1 + k), 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; });
-    for (var y2 = 0; y2 < 8; y2++) for (var x2 = 0; x2 < 8; x2++){
+    var s = jw.cell, b = jw.board, tx = jw.ox, ty = jw.top;
+    // ⏱️ 시간 막대
+    var tf = Math.max(0, Math.min(1, jw.time / JW_TIME_MAX));
+    c.fillStyle = 'rgba(0,0,0,0.3)'; rr(c, tx, ty + 4, b, 14, 7); c.fill();
+    c.fillStyle = jw.time > 20 ? '#51cf66' : (Math.floor(jw.t * 4) % 2 ? '#ff6b6b' : '#ff8787'); rr(c, tx, ty + 4, Math.max(14, b * Math.min(1, tf)), 14, 7); c.fill();
+    c.fillStyle = '#fff'; c.font = '900 11px sans-serif'; c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillText('⏱️ ' + Math.max(0, Math.ceil(jw.time)) + '초', tx + b - 6, ty + 11.5);
+    // 🔥 피버 게이지
+    var ff = fev ? jw.feverT / JW_FEVER_T : jw.fever;
+    c.fillStyle = 'rgba(0,0,0,0.3)'; rr(c, tx, ty + 24, b, 10, 5); c.fill();
+    c.fillStyle = fev ? '#ffd43b' : '#ff922b'; rr(c, tx, ty + 24, Math.max(10, b * ff), 10, 5); c.fill();
+    c.fillStyle = '#fff'; c.font = '800 9.5px sans-serif'; c.textAlign = 'left'; c.fillText(fev ? '✨ 피버! 점수 2배' : '🔥 피버', tx + 6, ty + 29.5);
+    // 판
+    c.fillStyle = 'rgba(255,255,255,0.12)'; rr(c, jw.ox - 4, jw.oy - 4, b + 8, b + 8, 14); c.fill();
+    for (var y = 0; y < JW_N; y++) for (var x = 0; x < JW_N; x++){ c.fillStyle = (x + y) % 2 ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.12)'; c.fillRect(jw.ox + x * s, jw.oy + y * s, s, s); }
+    jw.fade.forEach(function(f){ var k = f.t / 0.25; c.globalAlpha = 1 - k; c.fillStyle = f.c >= 0 ? JW_COL[f.c] : '#fff'; c.beginPath(); c.arc(jw.ox + (f.x + 0.5) * s, jw.oy + (f.y + 0.5) * s, s * 0.4 * (1 + k * 1.2), 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; });
+    c.save(); c.beginPath(); c.rect(jw.ox - 4, jw.oy - 4, b + 8, b + 8); c.clip();
+    for (var y2 = 0; y2 < JW_N; y2++) for (var x2 = 0; x2 < JW_N; x2++){
       var q = jw.g[y2][x2]; if (!q) continue;
       var px = jw.ox + (x2 + 0.5) * s, py = jw.oy + (y2 + 0.5) * s - q.dy;
       if (jw.swap){
         var sw = jw.swap, k2 = Math.min(1, sw.t), e = sw.back ? 1 - k2 : k2;
-        if (sw.back){ e = 1 - k2; }
-        if (x2 === sw.x1 && y2 === sw.y1){ px += (sw.x2 - sw.x1) * s * (sw.back ? 1 - k2 : k2); py += (sw.y2 - sw.y1) * s * (sw.back ? 1 - k2 : k2); }
-        else if (x2 === sw.x2 && y2 === sw.y2){ px += (sw.x1 - sw.x2) * s * (sw.back ? 1 - k2 : k2); py += (sw.y1 - sw.y2) * s * (sw.back ? 1 - k2 : k2); }
+        if (x2 === sw.x1 && y2 === sw.y1){ px += (sw.x2 - sw.x1) * s * e; py += (sw.y2 - sw.y1) * s * e; }
+        else if (x2 === sw.x2 && y2 === sw.y2){ px += (sw.x1 - sw.x2) * s * e; py += (sw.y1 - sw.y2) * s * e; }
       }
-      var r = s * 0.42 * (1 + Math.max(0, q.pop) * 0.3);
-      if (py < jw.oy - s * 0.5) continue;
-      drawGemShape(c, px, py, r, q);
+      var r = s * 0.43 * (1 + Math.max(0, q.pop) * 0.3);
+      var hinted = jw.hint && ((jw.hint[0] === x2 && jw.hint[1] === y2) || (jw.hint[2] === x2 && jw.hint[3] === y2));
+      if (hinted) r *= 1 + 0.06 * Math.sin(jw.t * 9);
+      drawAnimal(c, px, py, r, q);
+      if (jw.sel && jw.sel[0] === x2 && jw.sel[1] === y2){ c.strokeStyle = '#fff'; c.lineWidth = 3; rr(c, px - r - 2, py - r - 2, r * 2 + 4, r * 2 + 4, r * 0.5); c.stroke(); }
+      if (hinted){ c.strokeStyle = 'rgba(255,212,59,' + (0.6 + 0.4 * Math.sin(jw.t * 9)) + ')'; c.lineWidth = 3; rr(c, px - r - 2, py - r - 2, r * 2 + 4, r * 2 + 4, r * 0.5); c.stroke(); }
+    }
+    c.restore();
+    // 떠오르는 점수
+    jw.floats.forEach(function(f){ var k = f.t / 0.8; c.globalAlpha = 1 - k; c.fillStyle = f.col || '#fff'; c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 3; c.font = '900 ' + Math.round(s * 0.42) + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.strokeText(f.txt, f.x, f.y - k * s); c.fillText(f.txt, f.x, f.y - k * s); c.globalAlpha = 1; });
+    // 콤보 표시 (판 위쪽 가운데, 콤보 시간이 남은 만큼 진하게)
+    if (jw.combo >= 2 && jw.comboT > 0){
+      c.globalAlpha = Math.min(1, 0.35 + jw.comboT / JW_COMBO_T);
+      c.fillStyle = '#ffd43b'; c.strokeStyle = 'rgba(0,0,0,0.45)'; c.lineWidth = 4; c.font = '900 ' + Math.round(s * 0.55) + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.strokeText(jw.combo + ' COMBO', jw.ox + b / 2, jw.oy + s * 0.5); c.fillText(jw.combo + ' COMBO', jw.ox + b / 2, jw.oy + s * 0.5); c.globalAlpha = 1;
     }
   }
+  if (location.hash === '#econtest') window.__jw = { s: jw, swap: function(a, b, c2, d){ trySwap(a, b, c2, d); }, step: stepJw, start: startJw, nb: newJwBoard, runs: findRuns, find: jwFindMove, game: jewelGame, cellAt: jwCellAt };
 
   /* ---------- 🃏 같은 그림 찾기 ---------- */
   var MM_EMO = ['🍎','🍌','🍇','🍓','🍒','🍑','🍍','🥝','🥕','🌽','🍩','🍪','🍰','🧁','🍦','🍭'];
